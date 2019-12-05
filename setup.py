@@ -12,7 +12,7 @@ with open("requirements.txt") as f:
 
 setuptools.setup(
     name="logma",
-    version="0.0.1",
+    version="0.0.2.dev0",
     author="peakiq",
     description="defaults for structlog",
     long_description=long_description,

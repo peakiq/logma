@@ -3,13 +3,6 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("requirements.txt") as f:
-    required = [
-        line.split(" ")[0]
-        for line in f.read().splitlines()
-        if not (line.startswith("-") or line.startswith("#"))
-    ]
-
 setuptools.setup(
     name="logma",
     version="0.0.4.dev0",
@@ -26,5 +19,6 @@ setuptools.setup(
     package_dir={"": "src"},
     # https://setuptools.readthedocs.io/en/latest/setuptools.html#find-namespace-packages
     packages=setuptools.find_namespace_packages(where="src"),
-    install_requires=[required],
+    install_requires=["structlog"],
+    extras_require={"tests": ["pytest", "pytest-cov", "pytest-watch"]},
 )

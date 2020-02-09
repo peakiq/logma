@@ -1,4 +1,4 @@
-name: Python package
+name: logma
 
 on: [push]
 
@@ -23,6 +23,6 @@ jobs:
     - name: Test with pytest
       run: |
         pytest tests --cov logma --cov-report term --cov-report html
-    - name: Report coverage
-      run: |
-        codecov
+    # - name: Report coverage
+    #   run: |
+    #     codecov

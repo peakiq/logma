@@ -1,4 +1,4 @@
-# logma
+# logma ![] (https://github.com/peakiq/logma/workflows/Python%20package/badge.svg)
 
 future place of great logging
 

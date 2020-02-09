@@ -9,6 +9,7 @@ setuptools.setup(
     author="peakiq",
     description="defaults for structlog",
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url="https://github.com/peakiq/logma",
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,0 +1,28 @@
+name: Python package
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip pytest pytest-cov flake8 codecov
+        pip install -e .
+    - name: Test with flake8
+      run: |
+        flake8 tests logma
+    - name: Test with pytest
+      run: |
+        pytest tests --cov logma --cov-report term --cov-report html
+    - name: Report coverage
+      run: |
+        codecov

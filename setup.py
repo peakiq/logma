@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="logma",
-    version="0.1.1.dev0",
+    version="0.1.1",
     author="peakiq",
     description="defaults for structlog",
     long_description=long_description,

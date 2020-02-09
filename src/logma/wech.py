@@ -27,12 +27,24 @@ def datlog(
     capture_warnings=True,
     redirect_print=False,
     tty=None,
-    user_config=None
+    user_config=None,
+    json_renderer=None,
 ):
+    """Setup struct logging.
 
-    json_renderer = JSONRenderer(
-        serializer=lambda obj, **kwargs: json.dumps(stringify_dict_keys(obj), **kwargs)
-    )
+    :param tty: if `False` the log will appear in json format
+    :param level: the root logger level
+    :param redirect_print: hijacks stdout/err
+    :param capture_warnings: capture warnings
+    :param user_config: merge user config with default log config
+    :param json_renderer: a custom json renderer
+    """
+    if json_renderer is None:
+        json_renderer = JSONRenderer(
+            serializer=lambda obj, **kwargs: json.dumps(
+                stringify_dict_keys(obj), **kwargs
+            )
+        )
     if tty is None:
         tty = sys.stdout.isatty()
     renderer = structlog.dev.ConsoleRenderer() if tty else json_renderer
@@ -47,7 +59,6 @@ def datlog(
         add_os_pid,
     ]
 
-    # TODO merge with a user config
     config = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -59,13 +70,13 @@ def datlog(
             }
         },
         "handlers": {
-            "default": {"class": "logging.StreamHandler", "formatter": "structured",}
+            "default": {"class": "logging.StreamHandler", "formatter": "structured"}
         },
-        "loggers": {"": {"handlers": ["default"], "level": level, "propagate": True},},
+        "loggers": {"": {"handlers": ["default"], "level": level, "propagate": True}},
     }
 
     if user_config:
-        config["loggers"].update(user_config)
+        merge_dict(config, user_config)
 
     logging.config.dictConfig(config)
 
@@ -125,3 +136,18 @@ def add_os_pid(logger, method_name, event_dict):  # noqa
 def uncaught_exception(ex_type, ex_value, tb):  # noqa: C0103
     log_ = structlog.get_logger("sys.excepthook")
     log_.critical(event="uncaught exception", exc_info=(ex_type, ex_value, tb))
+
+
+def merge_dict(dest, source):
+    """Merge `source` into `dest`.
+
+    `dest` is altered in place.
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = dest.setdefault(key, {})
+            merge_dict(node, value)
+        else:
+            dest[key] = value
+    return dest

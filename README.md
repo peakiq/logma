@@ -8,8 +8,18 @@ future place of great logging
 # example
 
 ```
+import logging
+
 from logma.wech import datlog
 
 # auto detects tty and outputs json or text accordingly
 datlog()
+
+
+log = logging.getLogger(__file__)
+
+log.info("Hello")
+log.warn("Hello")
+log.error("Hello")
+log.debug("Hello")
 ```

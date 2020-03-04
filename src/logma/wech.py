@@ -1,5 +1,7 @@
 import os
 import sys
+import inspect
+from structlog._frames import _find_first_app_frame_and_name
 import json
 import logging
 import logging.config
@@ -19,6 +21,23 @@ def stringify_dict_keys(obj):
     elif isinstance(obj, dict):
         obj = {str(key): stringify_dict_keys(value) for key, value in obj.items()}
     return obj
+
+
+def add_caller_info(logger, _, event_dict):
+    f, name = _find_first_app_frame_and_name(additional_ignores=["logging", __name__])
+    if not f:
+        return event_dict
+    frameinfo = inspect.getframeinfo(f)
+    if not frameinfo:
+        return event_dict
+    module = inspect.getmodule(f)
+    if not module:
+        return event_dict
+    if frameinfo and module:
+        event_dict["module"] = module.__name__
+        event_dict["lineno"] = frameinfo.lineno
+        event_dict["func"] = f.f_code.co_name
+    return event_dict
 
 
 def datlog(
@@ -86,6 +105,7 @@ def datlog(
         structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
         timestamper,
+        add_caller_info,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.stdlib.ProcessorFormatter.wrap_for_formatter,

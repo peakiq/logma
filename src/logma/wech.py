@@ -1,16 +1,15 @@
 import os
 import sys
-import inspect
-from structlog._frames import _find_first_app_frame_and_name
 import json
+import inspect
+import threading
 import logging
 import logging.config
 
 import structlog
 
+from structlog._frames import _find_first_app_frame_and_name
 from structlog.processors import JSONRenderer
-
-PID = os.getpid()
 
 
 def stringify_dict_keys(obj):
@@ -21,6 +20,13 @@ def stringify_dict_keys(obj):
     elif isinstance(obj, dict):
         obj = {str(key): stringify_dict_keys(value) for key, value in obj.items()}
     return obj
+
+
+def add_thread_info(logger, method_name, event_dict):  # pylint: disable=unused-argument
+    thread = threading.current_thread()
+    event_dict["__thread_id"] = thread.ident
+    event_dict["__thread_name"] = thread.name
+    return event_dict
 
 
 def add_caller_info(logger, _, event_dict):
@@ -34,9 +40,9 @@ def add_caller_info(logger, _, event_dict):
     if not module:
         return event_dict
     if frameinfo and module:
-        event_dict["module"] = module.__name__
-        event_dict["lineno"] = frameinfo.lineno
-        event_dict["func"] = f.f_code.co_name
+        event_dict["__module"] = module.__name__
+        event_dict["__lineno"] = frameinfo.lineno
+        event_dict["__func"] = f.f_code.co_name
     return event_dict
 
 
@@ -105,7 +111,9 @@ def datlog(
         structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
         timestamper,
+        add_os_pid,
         add_caller_info,
+        add_thread_info,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
@@ -149,7 +157,8 @@ class StdioToLog:
 
 def add_os_pid(logger, method_name, event_dict):  # noqa
     """Add the logger name to the event dict."""
-    event_dict["pid"] = PID
+    # XXX if we run ProcessPoolExecutor we at least need the right pid
+    event_dict["__pid"] = os.getpid()
     return event_dict
 
 

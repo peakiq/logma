@@ -90,3 +90,31 @@ def test_logging_notty_user_config(capfd, dummy_call):
     event = [json.loads(x.strip()) for x in captured.err.split("\n") if x.strip()]
     assert len(event) == 3
     assert [x["logger"] for x in event] == ["test_logging", "dummy_call", "dummy_call"]
+
+
+def test_process_and_thread_unhandled_exception(capfd):
+    from logma.wech import datlog
+
+    logger = datlog(tty=False)
+    import multiprocessing
+    import threading
+
+    def dummy_func(name):
+        raise Exception("Exception from %s" % name)
+
+    proc = multiprocessing.Process(target=dummy_func, args=("Process",))
+    proc.start()
+    proc.join()
+    th = threading.Thread(target=dummy_func, args=("Thread",))
+    th.start()
+    th.join()
+
+    # logger.info("This is from Main")
+    logger.info("This is from Main")
+
+    captured = capfd.readouterr()
+    event = [json.loads(x.strip()) for x in captured.err.split("\n") if x.strip()]
+
+    assert len(event) == 3
+    exc = [x["exception"] for x in event if x["logger"] == "sys.excepthook"]
+    assert len(exc) == 2

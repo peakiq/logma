@@ -54,6 +54,8 @@ def datlog(
     tty=None,
     user_config=None,
     json_renderer=None,
+    hook_thread=True,
+    hook_process=True
 ):
     """Setup struct logging.
 
@@ -135,6 +137,10 @@ def datlog(
 
     # log uncaught exceptions
     sys.excepthook = uncaught_exception
+    if hook_thread:
+        install_thread_excepthook()
+    if hook_process:
+        install_process_excepthook()
     logger = structlog.get_logger()
     return logger
 
@@ -180,3 +186,48 @@ def merge_dict(dest, source):
         else:
             dest[key] = value
     return dest
+
+
+def install_thread_excepthook():
+    """
+    Patch run method so we can get exception message also in sys.excepthook
+
+    This is only need in python < 3.8 in 3.8 use:
+
+    https://docs.python.org/3.8/library/threading.html#threading.excepthook
+    """
+    import threading
+    import sys
+
+    run_orig = threading.Thread.run
+
+    def run(*args, **kwargs):
+        try:
+            run_orig(*args, **kwargs)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            sys.excepthook(*sys.exc_info())
+
+    threading.Thread.run = run
+
+
+def install_process_excepthook():
+    """
+    Patch run method so we can get exception message also in sys.excepthook
+
+    """
+    import multiprocessing
+    import sys
+
+    run_orig = multiprocessing.Process.run
+
+    def run(*args, **kwargs):
+        try:
+            run_orig(*args, **kwargs)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            sys.excepthook(*sys.exc_info())
+
+    multiprocessing.Process.run = run

@@ -118,3 +118,13 @@ def test_process_and_thread_unhandled_exception(capfd):
     assert len(event) == 3
     exc = [x["exception"] for x in event if x["logger"] == "sys.excepthook"]
     assert len(exc) == 2
+
+
+def test_level_from_string():
+    import logging
+    from logma.wech import datlog
+
+    datlog(level="info")
+    logger = logging.getLogger(None)
+
+    assert logger.level == logging.INFO

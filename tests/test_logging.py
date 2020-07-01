@@ -120,6 +120,15 @@ def test_process_and_thread_unhandled_exception(capfd):
     exc = [x["exception"] for x in event if x["logger"] == "sys.excepthook"]
     assert len(exc) == 2
 
+def test_level_from_string():
+    import logging
+    from logma.wech import datlog
+
+    datlog(level="info")
+    logger = logging.getLogger(None)
+
+    assert logger.level == logging.INFO
+
 
 def test_logging_json_formatter_specify_processors(capfd, dummy_call):
     from logma.wech import datlog

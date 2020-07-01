@@ -191,6 +191,9 @@ def datlog(
     :param user_config: merge user config with default log config
     :param json_renderer: a custom json renderer
     """
+    if isinstance(level, str):
+        level = logging.getLevelName(level.upper())
+
     if json_renderer is None:
         json_renderer = JSONRenderer(
             serializer=lambda obj, **kwargs: json.dumps(

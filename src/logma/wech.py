@@ -46,108 +46,6 @@ def add_caller_info(logger, _, event_dict):
     return event_dict
 
 
-def datlog(
-    *,
-    level=logging.DEBUG,
-    capture_warnings=True,
-    redirect_print=False,
-    tty=None,
-    user_config=None,
-    json_renderer=None,
-    hook_thread=True,
-    hook_process=True
-):
-    """Setup struct logging.
-
-    :param tty: if `False` the log will appear in json format
-    :param level: the root logger level
-    :param redirect_print: hijacks stdout/err
-    :param capture_warnings: capture warnings
-    :param user_config: merge user config with default log config
-    :param json_renderer: a custom json renderer
-    """
-    if isinstance(level, str):
-        level = logging.getLevelName(level.upper())
-
-    if json_renderer is None:
-        json_renderer = JSONRenderer(
-            serializer=lambda obj, **kwargs: json.dumps(
-                stringify_dict_keys(obj), **kwargs
-            )
-        )
-    if tty is None:
-        tty = sys.stdout.isatty()
-    renderer = structlog.dev.ConsoleRenderer() if tty else json_renderer
-    timestamper = structlog.processors.TimeStamper(fmt="ISO", utc=True)
-    pre_chain = [
-        # XXX log level and a timestamp to the event_dict if the log entry
-        # is not from structlog.
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.processors.format_exc_info,
-        timestamper,
-        add_os_pid,
-    ]
-
-    config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "structured": {
-                "()": structlog.stdlib.ProcessorFormatter,
-                "processor": renderer,
-                "foreign_pre_chain": pre_chain,
-            }
-        },
-        "handlers": {
-            "default": {"class": "logging.StreamHandler", "formatter": "structured"}
-        },
-        "loggers": {"": {"handlers": ["default"], "level": level, "propagate": True}},
-    }
-
-    if user_config:
-        merge_dict(config, user_config)
-
-    logging.config.dictConfig(config)
-
-    logging.captureWarnings(capture_warnings)
-    processors = [
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        timestamper,
-        add_os_pid,
-        add_caller_info,
-        add_thread_info,
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-    ]
-
-    structlog.configure(
-        processors=processors,
-        context_class=structlog.threadlocal.wrap_dict(dict),
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
-    )
-
-    if redirect_print:
-        # redirect stdio print
-        print_log = structlog.get_logger("print")
-        sys.stderr = StdioToLog(print_log)
-        sys.stdout = StdioToLog(print_log)
-
-    # log uncaught exceptions
-    sys.excepthook = uncaught_exception
-    if hook_thread:
-        install_thread_excepthook()
-    if hook_process:
-        install_process_excepthook()
-    logger = structlog.get_logger()
-    return logger
-
-
 class StdioToLog:
     """Delegate sys.stdout to a logger."""
 
@@ -234,3 +132,135 @@ def install_process_excepthook():
             sys.excepthook(*sys.exc_info())
 
     multiprocessing.Process.run = run
+
+
+PROCESSORS = {
+    "level": structlog.stdlib.add_log_level,
+    "name": structlog.stdlib.add_logger_name,
+    "positional_argument": structlog.stdlib.PositionalArgumentsFormatter(),
+    "time": structlog.processors.TimeStamper(fmt="ISO", utc=True),
+    "pid": add_os_pid,
+    "caller": add_caller_info,
+    "thread": add_thread_info,
+    "stack": structlog.processors.StackInfoRenderer(),
+    "exception": structlog.processors.format_exc_info,
+}
+
+DEFAULT_FOREIGN_PROCESSORS = [
+    # XXX log level and a timestamp to the event_dict if the log entry
+    # is not from structlog.
+    "name",
+    "level",
+    "exception",
+    "time",
+    "pid",
+]
+
+DEFAULT_PROCESSORS = [
+    "level",
+    "name",
+    "positional_argument",
+    "time",
+    "pid",
+    "caller",
+    "thread",
+    "stack",
+    "exception",
+]
+
+
+def datlog(
+    *,
+    level=logging.DEBUG,
+    capture_warnings=True,
+    redirect_print=False,
+    tty=None,
+    user_config=None,
+    json_renderer=None,
+    hook_thread=True,
+    hook_process=True,
+    use_processors=DEFAULT_PROCESSORS,
+    use_foreign_processors=DEFAULT_FOREIGN_PROCESSORS
+):
+    """Setup struct logging.
+
+    :param tty: if `False` the log will appear in json format
+    :param level: the root logger level
+    :param redirect_print: hijacks stdout/err
+    :param capture_warnings: capture warnings
+    :param user_config: merge user config with default log config
+    :param json_renderer: a custom json renderer
+    """
+    if isinstance(level, str):
+        level = logging.getLevelName(level.upper())
+
+    if json_renderer is None:
+        json_renderer = JSONRenderer(
+            serializer=lambda obj, **kwargs: json.dumps(
+                stringify_dict_keys(obj), **kwargs
+            )
+        )
+    if tty is None:
+        tty = sys.stdout.isatty()
+    console_renderer = structlog.dev.ConsoleRenderer()
+    renderer = console_renderer if tty else json_renderer
+    pre_chain = [PROCESSORS[x] for x in use_foreign_processors]
+
+    config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "structured": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processor": renderer,
+                "foreign_pre_chain": pre_chain,
+            },
+            "structured_console": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processor": console_renderer,
+                "foreign_pre_chain": pre_chain,
+            },
+            "structured_json": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processor": json_renderer,
+                "foreign_pre_chain": pre_chain,
+            },
+        },
+        "handlers": {
+            "default": {"class": "logging.StreamHandler", "formatter": "structured"}
+        },
+        "loggers": {"": {"handlers": ["default"], "level": level, "propagate": True}},
+    }
+
+    if user_config:
+        merge_dict(config, user_config)
+
+    logging.config.dictConfig(config)
+
+    logging.captureWarnings(capture_warnings)
+
+    processors = [PROCESSORS[x] for x in use_processors]
+    processors.append(structlog.stdlib.ProcessorFormatter.wrap_for_formatter)
+
+    structlog.configure(
+        processors=processors,
+        context_class=structlog.threadlocal.wrap_dict(dict),
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    if redirect_print:
+        # redirect stdio print
+        print_log = structlog.get_logger("print")
+        sys.stderr = StdioToLog(print_log)
+        sys.stdout = StdioToLog(print_log)
+
+    # log uncaught exceptions
+    sys.excepthook = uncaught_exception
+    if hook_thread:
+        install_thread_excepthook()
+    if hook_process:
+        install_process_excepthook()
+    logger = structlog.get_logger()
+    return logger

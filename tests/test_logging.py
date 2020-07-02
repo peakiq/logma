@@ -116,6 +116,7 @@ def test_process_and_thread_unhandled_exception(capfd):
     event = [json.loads(x.strip()) for x in captured.err.split("\n") if x.strip()]
 
     assert len(event) == 3
+    assert len(event[0].keys()) == 11
     exc = [x["exception"] for x in event if x["logger"] == "sys.excepthook"]
     assert len(exc) == 2
 
@@ -128,3 +129,53 @@ def test_level_from_string():
     logger = logging.getLogger(None)
 
     assert logger.level == logging.INFO
+
+
+def test_logging_json_formatter_specify_processors(capfd, dummy_call):
+    from logma.wech import datlog
+
+    # XXX add propagate=False to prevent double entries
+    config = {
+        "handlers": {"default": {"formatter": "structured_json"}},
+        "loggers": {
+            "dummy_call": {"handlers": ["default"], "level": "INFO", "propagate": False}
+        },
+    }
+    logger = datlog(tty=False, user_config=config, use_processors=["name", "level"])
+    logger.info("This is a info log")
+    dummy_call()
+    captured = capfd.readouterr()
+    event = [json.loads(x.strip()) for x in captured.err.split("\n") if x.strip()]
+    assert len(event) == 3
+    assert len(event[0].keys()) == 3
+    assert [x["logger"] for x in event] == ["test_logging", "dummy_call", "dummy_call"]
+
+
+def test_logging_console_formatter_specify_processors(capfd, dummy_call):
+    from logma.wech import datlog
+
+    # XXX add propagate=False to prevent double entries
+    config = {
+        "handlers": {"default": {"formatter": "structured_console"}},
+        "loggers": {
+            "dummy_call": {"handlers": ["default"], "level": "INFO", "propagate": False}
+        },
+    }
+    logger = datlog(tty=False, user_config=config, use_processors=["name", "level"])
+    logger.info("This is a info log")
+    dummy_call()
+    captured = capfd.readouterr()
+    assert captured.err.startswith("[\x1b[32m\x1b[1minfo     \x1b[0m]")
+
+
+def test_logging_redirect_print(capfd):
+    from logma.wech import datlog
+
+    logger = datlog(tty=False, redirect_print=True)
+    print("WOOOT")
+    logger.info("This is a info log")
+    captured = capfd.readouterr()
+    event = [json.loads(x.strip()) for x in captured.err.split("\n") if x.strip()]
+    assert len(event) == 2
+    assert event[0]["event"] == "WOOOT"
+    assert event[1]["event"] == "This is a info log"
